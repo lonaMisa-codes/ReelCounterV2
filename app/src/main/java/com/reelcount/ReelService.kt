@@ -28,8 +28,8 @@ class ReelService : AccessibilityService() {
         // Substrings of view IDs that only exist while the Reels / Shorts player is on screen.
         // If Instagram or YouTube rename their views, tweak these two lists.
         private val KEYS = mapOf(
-            "ig" to listOf("clips_viewer", "clips_video_container"),
-            "yt" to listOf("reel_player", "reel_recycler", "shorts_")
+            "ig" to listOf("clips_viewer", "clips_video_container", "clips_", "reel_viewer"),
+            "yt" to listOf("reel_", "shorts", "short_", "reel")
         )
 
         private val PROMPTS = listOf(
@@ -55,6 +55,7 @@ class ReelService : AccessibilityService() {
     private var block: View? = null
 
     private var lastCheck = 0L
+    private var lastDiag = 0L
     private var lastCount = 0L
     private var lastSeen = 0L
     private var reelsUntil = 0L
@@ -117,18 +118,39 @@ class ReelService : AccessibilityService() {
 
     private fun isReels(root: AccessibilityNodeInfo?, app: String): Boolean {
         root ?: return false
-        return walk(root, KEYS.getValue(app), 0)
+        val seen = LinkedHashSet<String>()
+        val r = Probe(KEYS.getValue(app), seen)
+        walk(root, r, 0)
+        if (!r.hit && now() - lastDiag > 3000) {
+            lastDiag = now()
+            store.diag = "$app\n" + seen.take(60).joinToString("\n")
+        }
+        return r.hit
     }
 
-    private fun walk(n: AccessibilityNodeInfo, keys: List<String>, depth: Int): Boolean {
-        if (depth > 14) return false
+    private fun now() = SystemClock.uptimeMillis()
+
+    private class Probe(val keys: List<String>, val seen: MutableSet<String>) {
+        var hit = false
+    }
+
+    private fun walk(n: AccessibilityNodeInfo, r: Probe, depth: Int) {
+        if (r.hit || depth > 45) return
         val id = n.viewIdResourceName
-        if (id != null && keys.any { id.contains(it) }) return true
+        if (id != null) {
+            r.seen.add(id.substringAfter(":id/"))
+            if (r.keys.any { id.contains(it, ignoreCase = true) }) { r.hit = true; return }
+        }
+        // Fallback: YouTube's bottom bar has a selected "Shorts" tab while Shorts is open.
+        if (n.isSelected) {
+            val label = (n.text?.toString() ?: "") + " " + (n.contentDescription?.toString() ?: "")
+            if (label.contains("Shorts", ignoreCase = true)) { r.hit = true; return }
+        }
         for (i in 0 until n.childCount) {
             val c = n.getChild(i) ?: continue
-            if (walk(c, keys, depth + 1)) return true
+            walk(c, r, depth + 1)
+            if (r.hit) return
         }
-        return false
     }
 
     private fun count(app: String, now: Long) {

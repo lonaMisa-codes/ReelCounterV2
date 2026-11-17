@@ -163,6 +163,11 @@ class MainActivity : Activity() {
             addView(sw("Intrusive break", s.blocker) { s.blocker = it })
         })
 
+        if (s.diag.isNotEmpty()) col.addView(card().apply {
+            addView(tv("Debug: last screen not detected as reels", 14f, bold = true))
+            addView(tv(s.diag, 11f, DIM).apply { setTextIsSelectable(true) })
+        })
+
         col.addView(btn("Reset today", 0xFF3A3A48.toInt()) { s.resetToday(); render() }.apply {
             (layoutParams as LinearLayout.LayoutParams).topMargin = dp(16)
         })

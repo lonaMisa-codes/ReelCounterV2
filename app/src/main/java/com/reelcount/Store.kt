@@ -18,6 +18,11 @@ class Store(ctx: Context) {
         get() = p.getBoolean("blocker", true)
         set(v) = p.edit().putBoolean("blocker", v).apply()
 
+    /** Debug: view IDs seen the last time Instagram/YouTube was open but reels weren't detected. */
+    var diag: String
+        get() = p.getString("diag", "") ?: ""
+        set(v) = p.edit().putString("diag", v).apply()
+
     private fun key(d: LocalDate, app: String) = "c_${d}_$app"
 
     fun count(d: LocalDate, app: String) = p.getInt(key(d, app), 0)
